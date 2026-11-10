@@ -14,11 +14,11 @@
 #   run once: C:\ProgramData\Anaconda3\Scripts\conda.exe init powershell
 #   and then restart PowerShell.)
 #
-#   1. Go to the folder that contains this file:
+#   1. Go to the repository folder:
 #        cd "C:\Users\{user_account}\Documents\00_PythonWIP\drive_search"
 #
 #   2. Create the environment (first time only):
-#        conda env create -f environment.yml
+#        conda env create -f setup\environment.yml
 #      It is created under C:\Users\{user_account}\.conda\envs\powertools because
 #      C:\ProgramData is not writable without admin rights.
 #
@@ -29,7 +29,7 @@
 #        python -c "import googleapiclient, google_auth_oauthlib, rich, tabulate; print('powertools OK')"
 #
 #   Update the environment after editing this file:
-#        conda env update -f environment.yml --prune
+#        conda env update -f setup\environment.yml --prune
 #
 #   Remove the environment completely:
 #        conda deactivate

@@ -4,7 +4,7 @@
 |---|---|
 | **Version** | 0.1.0 |
 | **Created** | 2026-11-10 |
-| **Spec** | `Google drive search utility - IMPROVED PROMPT.md` v1.3.0 (Prompt_Engineering workspace) |
+| **Spec** | [`docs/SPEC.md`](docs/SPEC.md) v1.3.1 (original idea: [`docs/rough_prompt.md`](docs/rough_prompt.md)) |
 
 A command-line tool that searches your Google Drive by file name and creation date. It prints a report in the terminal and saves the same report as Markdown and HTML in `search_results/`. In the HTML report, each file path is a link that opens the file in Drive.
 
@@ -18,7 +18,7 @@ It asks only for **read-only access to file details** (names, dates, folders). I
 In **Anaconda Prompt**:
 ```
 cd "C:\Users\{user_account}\Documents\00_PythonWIP\drive_search"
-conda env create -f environment.yml      # skip if "powertools" already exists
+conda env create -f setup\environment.yml      # skip if "powertools" already exists
 conda activate powertools
 ```
 
@@ -121,3 +121,6 @@ The tests use a fake Drive and make no network calls.
 | `drive_search/search.py` | Drive query, paging, retries |
 | `drive_search/paths.py` | Rebuilding full paths (cached) |
 | `drive_search/reports.py` | Terminal, Markdown and HTML reports |
+| `tests/` | pytest suite with a fake Drive (`tests/fakes.py`) |
+| `docs/SPEC.md` | The spec this code implements, and `docs/rough_prompt.md`, the original idea |
+| `setup/environment.yml` | Conda environment `powertools`, plus `requirements.txt` for pip users |

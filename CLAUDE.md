@@ -1,12 +1,21 @@
 # CLAUDE.md
 - created: 2026-11-10
 
-Google Drive search CLI. The spec is `..\Prompt_Engineering\Google drive search utility - IMPROVED PROMPT.md` (v1.3.0). Change the spec first (bump its version), then the code.
+Google Drive search CLI. The spec is `docs/SPEC.md` (v1.3.x); the original idea is in `docs/rough_prompt.md`. Change the spec first (bump its version), then the code, ideally in the same commit.
+
+## Layout
+| Path | Contents |
+|---|---|
+| `drive_search/` | The package (6 modules, see below) |
+| `tests/` | pytest suite; `tests/fakes.py` is the fake Drive service |
+| `docs/` | `SPEC.md`, `rough_prompt.md` |
+| `setup/` | `environment.yml` (conda env `powertools`), `requirements.txt` (pip fallback) |
+| `pyproject.toml` | pytest settings (stays at the top level) |
 
 ## Environment
 - Windows 11, PowerShell 5.1 (no `&&`, `||`, `?:`, `??`).
-- Anaconda at `C:\ProgramData\Anaconda3\`. conda is NOT on PATH, so call it by full path.
-- Conda env: `powertools` (shared; defined in `environment.yml`, conda-forge only).
+- Anaconda at `C:\ProgramData\Anaconda3\`. conda is NOT on PATH, so call it by full path. Never use conda `base`.
+- Conda env: `powertools`, defined in `setup/environment.yml` (conda-forge only).
 
 ## Commands
 - Tests: `C:\ProgramData\Anaconda3\Scripts\conda.exe run -n powertools python -m pytest`
