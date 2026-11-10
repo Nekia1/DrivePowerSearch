@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Secrets: Google OAuth client and saved sign-in token
+credentials.json
+token.json
+.env
+
+# Generated output
+logs/
+search_results/
+
+# AI session transcripts: may contain private information
+*transcript*
+
+# OS / editor
+Thumbs.db
+.DS_Store
