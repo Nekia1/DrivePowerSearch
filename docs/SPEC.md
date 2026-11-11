@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Version** | 1.4.0 |
+| **Version** | 1.5.0 |
 | **Created** | 2026-11-10 |
 | **Last updated** | 2026-11-11 |
 
 **Changelog**
+- **1.5.0** (2026-11-11): Merged the rest of the standalone build's prompt (`docs/archive/improved_prompt_v1.4.0.md`): standard file headers with per-file versions, `CHANGELOG.md`, `--include-trashed`, `--include-folders` (folders are now excluded by default), `--credentials`, `--token`, interactive prompts when run with no arguments, `--version` with release date, a `#` column, and a time zone abbreviation in the run time. Missing-`credentials.json` message lists the setup steps. New acceptance criteria.
 - **1.4.0** (2026-11-11): Merged lessons from the earlier standalone `VS_Code_Lessons/drive_search` 1.0.0 build. Reports show the tool version and run ID. Rate limits are recognized in both Drive error formats. Searches request the largest page size. Report files are created exclusively. An invalid `credentials.json` gets its own message. A test enforces the module-boundary rules.
 - **1.3.1** (2026-11-10): Moved from the Prompt_Engineering repo into `drive_search/docs/SPEC.md` (from Prompt_Engineering commit 27c4c13). No requirement changes.
 - **1.3.0** (2026-11-10): The log folder is created on first run, its write access is checked on every run, and there is a fallback location. The default log folder is now next to the utility instead of in the current working directory.
@@ -33,8 +34,8 @@ Put all sign-in and permission logic in a separate module that the rest of the t
   2. If the token has expired but has a refresh token, refresh it silently and save the new token.
   3. Otherwise, run the OAuth 2.0 "Desktop app" flow (`InstalledAppFlow.run_local_server`) with the client secrets in `credentials.json`, then save the resulting token.
 - **Scopes:** define `DEFAULT_SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]` as a constant in this module. This is the narrowest scope that works. If the saved token was granted different scopes, ask me to sign in again instead of failing with an unclear error.
-- **Configurable paths:** let the credential and token paths be overridden by the function arguments or by environment variables (`GDRIVE_CREDENTIALS`, `GDRIVE_TOKEN`), so the files can live outside the project folder.
-- **Errors:** raise custom exceptions (`CredentialsNotFoundError`, `AuthenticationError`) with clear messages. A `credentials.json` that exists but isn't a valid "Desktop app" OAuth client file gets its own message telling me to download it again. Let the CLI decide how to show them, and don't call `sys.exit` inside this module.
+- **Configurable paths:** let the credential and token paths be overridden so the files can live outside the project folder. Precedence: the `--credentials` / `--token` options (passed in as function arguments), then the environment variables `GDRIVE_CREDENTIALS` / `GDRIVE_TOKEN`, then `credentials.json` / `token.json` in the project folder.
+- **Errors:** raise custom exceptions (`CredentialsNotFoundError`, `AuthenticationError`) with clear messages. When `credentials.json` is missing, the message lists the numbered Google Cloud setup steps and points to `docs/google_cloud_setup.md`. A `credentials.json` that exists but isn't a valid "Desktop app" OAuth client file gets its own message telling me to download it again. Let the CLI decide how to show them, and don't call `sys.exit` inside this module.
 - **Security:** never print or log token contents. Write `token.json` only to the configured path. Add `credentials.json` and `token.json` to `.gitignore`.
 - **Reuse:** the module must not depend on the search or report code, so it can be reused in other Google Drive tools.
 
@@ -76,17 +77,24 @@ The log folder must exist and be writable before the tool does anything else, in
 | `--created-on YYYY-MM-DD` | No | Only files created on this calendar date |
 | `--created-after YYYY-MM-DD` / `--created-before YYYY-MM-DD` | No | Inclusive date range. Can't be combined with `--created-on` |
 | `--include-shared-drives` | No | Also search shared drives, not just My Drive |
+| `--include-trashed` | No | Include files in the trash. Default: excluded |
+| `--include-folders` | No | Include folders in the results. Default: files only |
+| `--credentials PATH` | No | OAuth client file. Default: see "Configurable paths" |
+| `--token PATH` | No | Saved sign-in token file. Default: see "Configurable paths" |
 | `--output-dir PATH` | No | Where to save reports. Default: `./search_results` |
 | `--log-level LEVEL` | No | How much detail goes in the log file: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 | `--log-dir PATH` | No | Where to save log files. Default: a `logs` folder next to the utility's own files (see "Log folder setup") |
 | `--verbose` | No | Also show `INFO` log messages in the terminal. Without it, the terminal shows only warnings and errors |
+| `--version` | No | Print `drive_search <version> (<release date>)` and exit |
+
+**Interactive mode:** if the tool is run with no arguments at all, ask for the name text, then the optional "created after" and "created before" dates (blank skips a date). Ask again after an invalid date or a blank name. Prompts go through `rich`, not `print`. Ctrl+C or end-of-input cancels with exit code 130. All other options take their defaults.
 
 Validate the inputs. Reject bad dates, `--created-on` combined with a range, and an "after" date that comes later than the "before" date. Each error should print a clear message and exit with a non-zero code.
 
 ## Search behavior
 - Build the query with the Drive API `q` parameter (`name contains '...'`, `createdTime >= '...'`). Escape quotes in user input.
 - Treat dates in my **local time zone** and convert them to UTC (RFC 3339) for the API.
-- Exclude trashed files (`trashed = false`). Include folders and Google Docs/Sheets/Slides as well as uploaded files.
+- Exclude trashed files (`trashed = false`) unless `--include-trashed`. Exclude folders (`mimeType != 'application/vnd.google-apps.folder'`) unless `--include-folders`. Always include Google Docs/Sheets/Slides as well as uploaded files.
 - Handle pagination (`nextPageToken`) so every match is returned, not just the first page. Request the largest page size the API allows (`pageSize=1000`) to keep the number of calls down.
 - Rate limits: Drive reports them as HTTP 429, or as HTTP 403 with a reason (`rateLimitExceeded`, `userRateLimitExceeded`) in `error.errors[]`, or `RATE_LIMIT_EXCEEDED` in `error.details[]`. Recognize all of these and retry with backoff.
 - **Full path:** Drive has no real paths. Rebuild one by walking each file's `parents` up to the root, for example `My Drive/Projects/2026/report.pdf`. Cache folder lookups to avoid repeated API calls. If a file has several parents, show the first one. If the path can't be resolved (for example, a file shared with me whose parent I can't see), show `(shared with me)/<name>`.
@@ -95,10 +103,11 @@ Validate the inputs. Reject bad dates, `--created-on` combined with a range, and
 ## Report content (same in all three outputs)
 1. Title: "Google Drive Search Report"
 2. Search terms used: every argument and its value, including defaults
-3. Report run date and time: local time, ISO 8601 format, with the time zone offset
+3. Report run date and time: local time, ISO 8601 format, with the time zone offset, followed by the time zone abbreviation, for example `2026-11-10T14:32:05-05:00 (EST)`. Windows gives long names such as "Eastern Standard Time", so shorten them to their initials.
 4. Tool version and run ID, so a report can be matched to its lines in the log (`run=<id>`)
 5. Total number of files found
 6. Results table with these columns, in this order:
+   - `#` (row number, starting at 1)
    - File name
    - Created (local time, `YYYY-MM-DD HH:MM`)
    - Modified (local time, `YYYY-MM-DD HH:MM`)
@@ -123,16 +132,37 @@ Keep the parts separate so each can be tested on its own:
 | `auth.py` | Credentials, tokens, scopes, and building the Drive client (see above) |
 | `logging_setup.py` | Setting up logging once: handlers, format, rotation, run ID (see above) |
 | `cli.py` | Argument parsing, input checks, calling `setup_logging` first, and turning exceptions into friendly messages and exit codes |
-| `drive_search.py` | Building the query, calling the API, and pagination. Receives a Drive service object and never creates one itself |
+| `search.py` | Building the query, calling the API, and pagination. Receives a Drive service object and never creates one itself |
 | `paths.py` | Rebuilding full paths from parent folders, with caching |
 | `reports.py` | Rendering the terminal, Markdown, and HTML outputs |
 
+`__init__.py` holds the tool's `__version__` and `__release_date__`; `--version` and the reports read them from there. `__main__.py` lets the tool run as `python -m drive_search`.
+
 The search module receives the Drive service as an argument (dependency injection). This makes it easy to pass in a mock during tests. Add type hints and short docstrings.
 
+## Source file headers and versioning
+- Use [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
+  - **MAJOR:** incompatible changes, such as a renamed or removed option, or a changed report format.
+  - **MINOR:** new features that don't break existing use.
+  - **PATCH:** bug fixes only.
+- Every `.py` file, including tests, starts with this module docstring header. Any longer description follows after a blank line:
+  ```python
+  """
+  Module:        drive_search/auth.py
+  Description:   Google sign-in, token caching and Drive API client creation.
+  Version:       1.0.0
+  Created:       2026-11-10
+  Last updated:  2026-11-11T09:30:00-05:00
+  """
+  ```
+  - `Module` is the path from the project root. `Created` is a date (`YYYY-MM-DD`). `Last updated` is a full ISO 8601 timestamp with the time zone offset.
+  - Each file also defines `__version__`, matching its header. Whenever a file changes, bump its version and update `Last updated`.
+- The tool's own version is `__version__` in `drive_search/__init__.py`, with `__release_date__`. Each release gets an entry in `CHANGELOG.md`.
+
 ## Deliverables
-1. The script (or a small package) with a clear entry point, for example `python drive_search.py --name budget --created-after 2026-01-01`
-2. `requirements.txt`
-3. `README.md` with step-by-step Google Cloud setup (enable the Drive API, create OAuth desktop credentials, download `credentials.json`), install steps, and usage examples
+1. A package with a clear entry point, for example `python -m drive_search --name budget --created-after 2026-01-01`
+2. `setup/environment.yml` (the `powertools` conda environment, conda-forge first), plus `setup/requirements.txt` as a pip fallback
+3. `README.md` with step-by-step Google Cloud setup (enable the Drive API, create OAuth desktop credentials, download `credentials.json`), install steps, how to reset the sign-in by deleting `token.json`, and usage examples. `CHANGELOG.md` with an entry for every release
 4. `pytest` unit tests for query building, date validation and conversion, and Markdown/HTML rendering, including escaping and the "no results" case. Use a mocked Drive service so the tests make no network calls.
 5. `pytest` unit tests for `auth.py` with the Google auth library mocked. Cover four cases: a valid cached token, an expired token that gets refreshed, no token (the sign-in flow runs), and a missing `credentials.json`.
 6. `pytest` unit tests for logging, using `caplog` and a temporary folder. Check that:
@@ -145,7 +175,11 @@ The search module receives the Drive service as an argument (dependency injectio
    - no token or secret values appear in the log, even when auth fails
 
 ## Acceptance criteria
-- A search with known matches returns every one of them, including results beyond the first API page.
+- A search with known matches returns every one of them, including results beyond the first API page and more than 1,000 files in total.
+- A file named `Q1 | <Draft> & Notes.docx` displays correctly in all three outputs.
+- `python -m drive_search --version` prints, for example, `drive_search 1.0.0 (2026-11-11)`.
+- Every `.py` file has the standard header, and its `Version` matches its `__version__` (checked by `tests/test_project_rules.py`).
+- Deleting `token.json` and running again opens the browser sign-in. A second run after that doesn't.
 - All three outputs show the same search terms, run timestamp, count, and rows.
 - Every path link in the HTML report opens the correct file in Drive.
 - Running the tool twice produces two separate report pairs.

@@ -1,3 +1,11 @@
+"""
+Module:        tests/test_reports.py
+Description:   Tests for terminal, Markdown and HTML rendering and saving.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 import io
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +23,8 @@ from drive_search.reports import (
     render_terminal,
     save_reports,
 )
+
+__version__ = "1.0.0"
 
 RUN_AT = datetime(2026, 11, 10, 14, 32, 5, tzinfo=timezone(timedelta(hours=-5)))
 TERMS = [("Name", "budget"), ("Match", "contains (case-insensitive)")]
@@ -144,3 +154,42 @@ def test_save_skips_a_name_taken_after_the_check(tmp_path, monkeypatch):
     md_path, _ = save_reports(report(), out)
     assert md_path.name == "drive_search_20261110_143205_2.md"
     assert taken.read_text(encoding="utf-8") == "another run"
+
+
+def test_row_numbers_in_every_output():
+    rep = report([row(), row(name="second.txt", path="My Drive/second.txt")])
+    md, page, term = render_markdown(rep), render_html(rep), terminal_text(rep)
+    assert "| # | File name | Created | Modified | Full path |" in md
+    assert "| 2 | second.txt |" in md
+    assert '<td class="num">2</td>' in page and '<th class="num">#</th>' in page
+    assert "#" in term
+
+
+def test_special_character_name_displays_in_all_outputs():
+    """Spec acceptance criterion: `Q1 | <Draft> & Notes.docx` shows correctly everywhere."""
+    name = "Q1 | <Draft> & Notes.docx"
+    rep = report([row(name=name, path=f"My Drive/{name}")])
+    md = render_markdown(rep)
+    assert "Q1 \\| &lt;Draft> & Notes.docx" in md  # renders as the original name in GFM
+    assert md.count("\n| 1 |") == 1  # still exactly one table row
+    page = render_html(rep)
+    assert "Q1 | &lt;Draft&gt; &amp; Notes.docx" in page
+    assert name in terminal_text(rep)
+
+
+@pytest.mark.parametrize(
+    "zone_name, expected",
+    [("Eastern Standard Time", "EST"), ("EST", "EST"), ("CET", "CET"), ("UTC-05:00", ""), ("UTC", "")],
+)
+def test_tz_abbreviation(zone_name, expected):
+    from drive_search.reports import tz_abbreviation
+
+    moment = datetime(2026, 11, 10, 14, 32, 5, tzinfo=timezone(timedelta(hours=-5), zone_name))
+    assert tz_abbreviation(moment) == expected
+
+
+def test_run_time_shows_offset_and_abbreviation():
+    from drive_search.reports import format_run_time
+
+    moment = datetime(2026, 11, 10, 14, 32, 5, tzinfo=timezone(timedelta(hours=-5), "Eastern Standard Time"))
+    assert format_run_time(moment) == "2026-11-10T14:32:05-05:00 (EST)"

@@ -1,3 +1,11 @@
+"""
+Module:        tests/test_auth.py
+Description:   Tests for auth.py with the Google auth libraries faked.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 import json
 from types import SimpleNamespace
 
@@ -6,6 +14,8 @@ from google.auth.exceptions import RefreshError
 
 from drive_search import auth
 from drive_search.logging_setup import setup_logging
+
+__version__ = "1.0.0"
 
 TOKEN_SECRET = "ya29.TOKEN-SECRET-VALUE"
 REFRESH_SECRET = "1//REFRESH-SECRET-VALUE"
@@ -176,3 +186,14 @@ def test_invalid_client_file_has_its_own_message(monkeypatch, paths):
     monkeypatch.setattr(auth, "InstalledAppFlow", SimpleNamespace(from_client_secrets_file=wrong_type))
     with pytest.raises(auth.AuthenticationError, match="not a valid OAuth 'Desktop app' client file"):
         auth.get_credentials(secrets, token)
+
+
+def test_missing_credentials_message_lists_setup_steps(monkeypatch, paths):
+    secrets, token = paths
+    install(monkeypatch)
+    with pytest.raises(auth.CredentialsNotFoundError) as excinfo:
+        auth.get_credentials(secrets, token)
+    message = str(excinfo.value)
+    assert message.startswith(f"OAuth client file not found: {secrets}")
+    assert all(f"  {n}. " in message for n in range(1, 6))
+    assert "docs/google_cloud_setup.md" in message and "Desktop app" in message

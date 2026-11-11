@@ -1,4 +1,12 @@
-"""A tiny fake of the Drive v3 service, enough for search and path tests."""
+"""
+Module:        tests/fakes.py
+Description:   A small fake of the Drive v3 service for offline tests.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+A tiny fake of the Drive v3 service, enough for search and path tests.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +15,8 @@ from typing import Any
 
 import httplib2
 from googleapiclient.errors import HttpError
+
+__version__ = "1.0.0"
 
 
 def make_http_error(status: int, reason: str = "testReason") -> HttpError:

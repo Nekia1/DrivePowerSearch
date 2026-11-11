@@ -1,4 +1,11 @@
-"""Building the Drive query, calling the API, pagination and retries.
+"""
+Module:        drive_search/search.py
+Description:   Builds the Drive query and runs it with pagination and retries.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Building the Drive query, calling the API, pagination and retries.
 
 Receives a Drive service object and never creates one (dependency injection),
 so tests can pass in a fake.
@@ -17,9 +24,12 @@ from typing import Any, Callable
 import httplib2
 from googleapiclient.errors import HttpError
 
+__version__ = "1.0.0"
+
 logger = logging.getLogger(__name__)
 
-FILE_FIELDS = "id, name, mimeType, createdTime, modifiedTime, parents, driveId, webViewLink"
+FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+FILE_FIELDS ="id, name, mimeType, createdTime, modifiedTime, parents, driveId, webViewLink"
 PAGE_SIZE = 1000  # the API maximum: fewest calls for large result sets
 MAX_RETRIES = 5
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -41,6 +51,8 @@ class SearchCriteria:
     created_after: date | None = None
     created_before: date | None = None
     include_shared_drives: bool = False
+    include_trashed: bool = False
+    include_folders: bool = False
 
 
 def escape_query_value(value: str) -> str:
@@ -78,7 +90,11 @@ def to_rfc3339(moment: datetime) -> str:
 def build_query(criteria: SearchCriteria) -> str:
     """Build the Drive API ``q`` string for ``criteria``."""
     operator = "=" if criteria.exact else "contains"
-    parts = [f"name {operator} '{escape_query_value(criteria.name)}'", "trashed = false"]
+    parts = [f"name {operator} '{escape_query_value(criteria.name)}'"]
+    if not criteria.include_trashed:
+        parts.append("trashed = false")
+    if not criteria.include_folders:
+        parts.append(f"mimeType != '{FOLDER_MIME_TYPE}'")
     start, end = created_range(criteria)
     if start:
         parts.append(f"createdTime >= '{to_rfc3339(start)}'")

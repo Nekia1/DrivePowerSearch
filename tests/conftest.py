@@ -1,6 +1,16 @@
+"""
+Module:        tests/conftest.py
+Description:   Shared pytest fixtures: logging cleanup and auth environment isolation.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 import pytest
 
 from drive_search.logging_setup import shutdown_logging
+
+__version__ = "1.0.0"
 
 
 @pytest.fixture(autouse=True)

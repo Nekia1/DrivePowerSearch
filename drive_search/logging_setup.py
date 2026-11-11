@@ -1,4 +1,11 @@
-"""Logging configuration for Drive Search.
+"""
+Module:        drive_search/logging_setup.py
+Description:   Logging setup: log folder with fallback, rotating file, run ID, quiet console.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Logging configuration for Drive Search.
 
 This is the ONLY module that adds handlers or sets formats. Every other module
 just does ``logger = logging.getLogger(__name__)``.
@@ -21,6 +28,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+__version__ = "1.0.0"
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOG_DIR = PROJECT_ROOT / "logs"

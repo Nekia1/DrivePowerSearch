@@ -1,3 +1,11 @@
+"""
+Module:        tests/test_cli.py
+Description:   End-to-end tests for the command-line interface.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 import argparse
 import re
 
@@ -7,6 +15,8 @@ from drive_search import cli
 from drive_search.auth import CredentialsNotFoundError
 from drive_search.logging_setup import LOG_FILE_NAME
 from fakes import FakeService, drive_file, make_http_error
+
+__version__ = "1.0.0"
 
 FOLDERS = {"f1": {"id": "f1", "name": "Projects", "parents": ["root-id"]}}
 
@@ -23,7 +33,13 @@ def run(dirs, *extra):
 
 def fake_drive(monkeypatch, pages=None):
     service = FakeService(pages=pages or [{"files": [drive_file("x1", "report.pdf", parents=["f1"])]}], folders=FOLDERS)
-    monkeypatch.setattr(cli.auth, "get_credentials", lambda: object())
+    service.auth_calls = []
+
+    def fake_credentials(*args):
+        service.auth_calls.append(args)
+        return object()
+
+    monkeypatch.setattr(cli.auth, "get_credentials", fake_credentials)
     monkeypatch.setattr(cli.auth, "build_drive_service", lambda creds: service)
     return service
 
@@ -98,7 +114,7 @@ def test_two_runs_make_two_report_pairs(dirs, monkeypatch):
 
 
 def test_missing_credentials_is_friendly(dirs, monkeypatch, capsys):
-    def missing():
+    def missing(*args):
         raise CredentialsNotFoundError("OAuth client file not found: C:\\x\\credentials.json.")
 
     monkeypatch.setattr(cli.auth, "get_credentials", missing)
@@ -136,3 +152,64 @@ def test_report_run_id_matches_the_log(dirs, monkeypatch):
     (log_run_id,) = set(re.findall(r"run=([0-9a-f]{8})", log_text(dirs)))
     md = next(dirs[0].glob("*.md")).read_text(encoding="utf-8")
     assert f"run {log_run_id}" in md
+
+
+def test_version_format(tmp_path, capsys):
+    from drive_search import __release_date__, __version__
+
+    assert cli.main(["--version", "--log-dir", str(tmp_path)]) == 0
+    assert capsys.readouterr().out.strip() == f"drive_search {__version__} ({__release_date__})"
+
+
+def test_credential_paths_are_passed_to_auth(dirs, monkeypatch, tmp_path):
+    service = fake_drive(monkeypatch)
+    secrets, token = str(tmp_path / "c.json"), str(tmp_path / "t.json")
+    assert run(dirs, "--credentials", secrets, "--token", token) == cli.EXIT_OK
+    assert service.auth_calls == [(secrets, token)]
+
+
+def test_trashed_and_folder_options_reach_query_and_report(dirs, monkeypatch):
+    service = fake_drive(monkeypatch)
+    assert run(dirs, "--include-trashed", "--include-folders") == cli.EXIT_OK
+    query = service.files_api.list_calls[0]["q"]
+    assert "trashed" not in query and "mimeType" not in query
+    md = next(dirs[0].glob("*.md")).read_text(encoding="utf-8")
+    assert "| Include trashed files | yes |" in md and "| Include folders | yes |" in md
+
+
+def test_defaults_exclude_trashed_and_folders(dirs, monkeypatch):
+    service = fake_drive(monkeypatch)
+    run(dirs)
+    query = service.files_api.list_calls[0]["q"]
+    assert "trashed = false" in query and "mimeType != 'application/vnd.google-apps.folder'" in query
+
+
+class TestInteractive:
+    def test_prompt_reasks_blank_name_and_invalid_date(self):
+        answers = iter(["", "budget", "2025-13-01", "2025-01-01", ""])
+        told = []
+        argv = cli.prompt_for_terms(lambda label: next(answers), told.append)
+        assert argv == ["--name", "budget", "--created-after", "2025-01-01"]
+        assert len(told) == 1 and "YYYY-MM-DD" in told[0]
+
+    def _run_interactive(self, tmp_path, monkeypatch, stdin_text):
+        import io
+
+        from rich.console import Console
+
+        from drive_search.logging_setup import setup_logging
+
+        monkeypatch.chdir(tmp_path)  # default ./search_results lands in tmp_path
+        monkeypatch.setattr("sys.stdin", io.StringIO(stdin_text))
+        info = setup_logging(log_dir=tmp_path / "logs")
+        return cli._run([], info, Console(file=io.StringIO(), width=200))
+
+    def test_no_arguments_runs_interactively(self, tmp_path, monkeypatch):
+        service = fake_drive(monkeypatch)
+        assert self._run_interactive(tmp_path, monkeypatch, "report\n\n\n") == cli.EXIT_OK
+        assert "name contains 'report'" in service.files_api.list_calls[0]["q"]
+        assert len(list((tmp_path / "search_results").glob("*.md"))) == 1
+
+    def test_end_of_input_cancels(self, tmp_path, monkeypatch):
+        fake_drive(monkeypatch)
+        assert self._run_interactive(tmp_path, monkeypatch, "") == cli.EXIT_INTERRUPTED

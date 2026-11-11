@@ -1,4 +1,11 @@
-"""Rendering the terminal, Markdown and HTML reports.
+"""
+Module:        drive_search/reports.py
+Description:   Renders and saves the terminal, Markdown and HTML reports.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Rendering the terminal, Markdown and HTML reports.
 
 All three outputs show the same title, search terms, run timestamp, count and
 rows. Every value from Drive is escaped for its output format.
@@ -17,11 +24,13 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+__version__ = "1.0.0"
+
 logger = logging.getLogger(__name__)
 
 TITLE = "Google Drive Search Report"
 NO_RESULTS = "No files found"
-COLUMNS = ("File name", "Created", "Modified", "Full path")
+COLUMNS = ("#", "File name", "Created", "Modified", "Full path")
 MAX_NAME_ATTEMPTS = 1000
 
 
@@ -69,12 +78,27 @@ def format_local(moment: datetime | None) -> str:
     return moment.astimezone().strftime("%Y-%m-%d %H:%M") if moment else ""
 
 
+def tz_abbreviation(moment: datetime) -> str:
+    """Short time zone name, e.g. ``EST``. Windows gives long names such as
+    "Eastern Standard Time", which are shortened to their initials. Returns ""
+    when the zone has no real name (only an offset such as ``UTC-05:00``)."""
+    name = moment.tzname() or ""
+    if not name or name.startswith(("UTC", "GMT+", "GMT-", "+", "-")):
+        return ""
+    if " " in name:
+        name = "".join(word[0] for word in name.split() if word[0].isalpha()).upper()
+    return name
+
+
 def format_run_time(moment: datetime) -> str:
-    return moment.isoformat(timespec="seconds")
+    """``2026-11-10T14:32:05-05:00 (EST)``: ISO 8601 plus the zone abbreviation."""
+    text = moment.isoformat(timespec="seconds")
+    abbreviation = tz_abbreviation(moment)
+    return f"{text} ({abbreviation})" if abbreviation else text
 
 
-def _cells(row: ResultRow) -> tuple[str, str, str, str]:
-    return row.name, format_local(row.created), format_local(row.modified), row.path
+def _cells(number: int, row: ResultRow) -> tuple[str, str, str, str, str]:
+    return str(number), row.name, format_local(row.created), format_local(row.modified), row.path
 
 
 # --- Terminal -----------------------------------------------------------------
@@ -100,12 +124,13 @@ def render_terminal(report: Report, console: Console | None = None) -> None:
         console.print(Text(NO_RESULTS, style="yellow"))
         return
     results = Table(title="Results", title_justify="left", show_header=True)
-    results.add_column(COLUMNS[0], overflow="fold")
-    results.add_column(COLUMNS[1], no_wrap=True)
+    results.add_column(COLUMNS[0], justify="right", no_wrap=True)
+    results.add_column(COLUMNS[1], overflow="fold")
     results.add_column(COLUMNS[2], no_wrap=True)
-    results.add_column(COLUMNS[3], overflow="fold")  # long paths wrap to fit
-    for row in report.rows:
-        results.add_row(*(Text(cell) for cell in _cells(row)))
+    results.add_column(COLUMNS[3], no_wrap=True)
+    results.add_column(COLUMNS[4], overflow="fold")  # long paths wrap to fit
+    for number, row in enumerate(report.rows, 1):
+        results.add_row(*(Text(cell) for cell in _cells(number, row)))
     console.print(results)
 
 
@@ -139,8 +164,11 @@ def render_markdown(report: Report) -> str:
     lines += [f"| {_md(term)} | {_md(value)} |" for term, value in report.search_terms]
     lines += ["", "## Results", ""]
     if report.rows:
-        lines += ["| " + " | ".join(COLUMNS) + " |", "|---|---|---|---|"]
-        lines += ["| " + " | ".join(_md(c) for c in _cells(row)) + " |" for row in report.rows]
+        lines += ["| " + " | ".join(COLUMNS) + " |", "|---:|---|---|---|---|"]
+        lines += [
+            "| " + " | ".join(_md(c) for c in _cells(number, row)) + " |"
+            for number, row in enumerate(report.rows, 1)
+        ]
     else:
         lines.append(NO_RESULTS)
     return "\n".join(lines) + "\n"
@@ -164,6 +192,7 @@ th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertic
 th { background:var(--head); }
 tr:nth-child(even) td { background:var(--stripe); }
 td.nowrap { white-space:nowrap; }
+th.num, td.num { text-align:right; white-space:nowrap; }
 td.path { word-break:break-all; }
 a { color:var(--link); }
 .empty { color:var(--muted); font-style:italic; }
@@ -186,14 +215,15 @@ def render_html(report: Report) -> str:
     if report.rows:
         body_rows = "\n".join(
             "<tr>"
+            f'<td class="num">{number}</td>'
             f"<td>{_h(row.name)}</td>"
             f'<td class="nowrap">{_h(format_local(row.created))}</td>'
             f'<td class="nowrap">{_h(format_local(row.modified))}</td>'
             f'<td class="path">{_path_cell(row)}</td>'
             "</tr>"
-            for row in report.rows
+            for number, row in enumerate(report.rows, 1)
         )
-        header = "".join(f"<th>{_h(c)}</th>" for c in COLUMNS)
+        header = "".join(f'<th class="num">{_h(c)}</th>' if c == "#" else f"<th>{_h(c)}</th>" for c in COLUMNS)
         results = f'<div class="table-wrap"><table>\n<thead><tr>{header}</tr></thead>\n<tbody>\n{body_rows}\n</tbody>\n</table></div>'
     else:
         results = f'<p class="empty">{_h(NO_RESULTS)}</p>'

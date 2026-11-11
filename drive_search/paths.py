@@ -1,4 +1,11 @@
-"""Rebuilding full paths from Drive parent folders, with caching.
+"""
+Module:        drive_search/paths.py
+Description:   Rebuilds full Drive paths from parent folders, with caching.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Rebuilding full paths from Drive parent folders, with caching.
 
 Drive has no real paths: a file has parent folder IDs. We walk the first
 parent up to the root (My Drive or a shared drive). If a parent can't be seen
@@ -14,6 +21,8 @@ from typing import Any, Callable
 from googleapiclient.errors import HttpError
 
 from drive_search.search import DriveSearchError, execute_with_retry, http_status
+
+__version__ = "1.0.0"
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +80,10 @@ class PathResolver:
         """Return a path such as ``My Drive/Projects/2026/report.pdf``."""
         segments = [file.get("name") or "(unnamed)"]
         parents = file.get("parents") or []
+        if len(parents) > 1:
+            # IDs only: file names are personal data and are logged only at DEBUG.
+            logger.warning("File id=%s has %d parent folders; showing the path through the first.",
+                           file.get("id"), len(parents))
         current = parents[0] if parents else None
         seen: set[str] = set()
 

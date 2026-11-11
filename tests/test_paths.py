@@ -1,5 +1,15 @@
+"""
+Module:        tests/test_paths.py
+Description:   Tests for full-path rebuilding and folder caching.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 from drive_search.paths import PathResolver
 from fakes import FakeService, drive_file
+
+__version__ = "1.0.0"
 
 FOLDERS = {
     "f1": {"id": "f1", "name": "Projects", "parents": ["root-id"]},
@@ -65,3 +75,11 @@ def test_parent_cycle_terminates():
 def test_multiple_parents_uses_the_first():
     r, _ = resolver()
     assert r.resolve(drive_file("x", "a.txt", parents=["f2", "f5"])) == "My Drive/Projects/2026/a.txt"
+
+
+def test_multiple_parents_warns_with_id_only(caplog):
+    r, _ = resolver()
+    with caplog.at_level("WARNING"):
+        r.resolve(drive_file("x9", "secret-name.txt", parents=["f2", "f5"]))
+    assert "x9" in caplog.text and "2 parent folders" in caplog.text
+    assert "secret-name" not in caplog.text

@@ -1,4 +1,11 @@
-"""Google authentication and authorization.
+"""
+Module:        drive_search/auth.py
+Description:   Google sign-in, token caching, OAuth scopes and Drive API client creation.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Google authentication and authorization.
 
 This is the ONLY module that reads credential or token files, handles tokens,
 or names OAuth scopes. It does not depend on the search or report code, so it
@@ -25,6 +32,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+__version__ = "1.0.0"
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -33,6 +42,20 @@ DEFAULT_CREDENTIALS_FILE = PROJECT_ROOT / "credentials.json"
 DEFAULT_TOKEN_FILE = PROJECT_ROOT / "token.json"
 ENV_CREDENTIALS = "GDRIVE_CREDENTIALS"
 ENV_TOKEN = "GDRIVE_TOKEN"
+
+# Shown when credentials.json is missing. Keep in sync with docs/google_cloud_setup.md.
+SETUP_INSTRUCTIONS = """\
+OAuth client file not found: {path}
+
+To create it (one time, about 15 minutes; full guide: docs/google_cloud_setup.md):
+  1. Go to https://console.cloud.google.com/ and create (or pick) a project.
+  2. Turn on the Google Drive API for that project.
+  3. Set up the OAuth consent screen (External, Testing) and add yourself as a test user.
+  4. Create an OAuth client ID with application type "Desktop app".
+  5. Download its JSON, rename it to credentials.json, and save it as:
+     {path}
+     (or pass another location with --credentials, or set GDRIVE_CREDENTIALS).
+Then run the tool again. A browser window will open for you to sign in."""
 
 
 class AuthError(Exception):
@@ -118,11 +141,7 @@ def get_credentials(
             return creds
 
     if not secrets_file.exists():
-        raise CredentialsNotFoundError(
-            f"OAuth client file not found: {secrets_file}. "
-            "Create a 'Desktop app' OAuth client in Google Cloud Console, download it as "
-            "credentials.json, and put it there (see README, 'Google Cloud setup')."
-        )
+        raise CredentialsNotFoundError(SETUP_INSTRUCTIONS.format(path=secrets_file))
 
     try:
         flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), scopes)

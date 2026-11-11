@@ -1,4 +1,11 @@
-"""Command-line interface: argument parsing, input checks, and turning
+"""
+Module:        drive_search/cli.py
+Description:   Command-line interface: options, interactive prompts, input checks, exit codes.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+
+Command-line interface: argument parsing, input checks, and turning
 exceptions into friendly messages and exit codes.
 
 Logging is set up first, before anything else (spec 1.3.0, "Log folder setup").
@@ -13,17 +20,19 @@ import sys
 import time
 from datetime import date, datetime
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from rich.console import Console
 from rich.text import Text
 
-from drive_search import __version__, auth
+from drive_search import __release_date__, __version__, auth
 from drive_search.auth import AuthError
 from drive_search.logging_setup import VALID_LEVELS, LoggingInfo, setup_logging, shutdown_logging
 from drive_search.paths import PathResolver
 from drive_search.reports import Report, ReportWriteError, ResultRow, parse_drive_time, render_terminal, save_reports
 from drive_search.search import DriveSearchError, SearchCriteria, search_files
+
+__version__ = "1.0.0"
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m drive_search",
         description="Search Google Drive by file name and creation date, and save Markdown and HTML reports.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--version", action="version", version=f"drive_search {__version__} ({__release_date__})")
     parser.add_argument("--name", required=True, help="Text to match against file names")
     parser.add_argument(
         "--exact", action="store_true", help="Match the whole name exactly (default: name contains TEXT, case-insensitive)"
@@ -73,6 +82,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--created-after", type=parse_date, metavar="YYYY-MM-DD", help="Created on or after this date")
     parser.add_argument("--created-before", type=parse_date, metavar="YYYY-MM-DD", help="Created on or before this date")
     parser.add_argument("--include-shared-drives", action="store_true", help="Also search shared drives")
+    parser.add_argument("--include-trashed", action="store_true", help="Include files in the trash (default: excluded)")
+    parser.add_argument("--include-folders", action="store_true", help="Include folders (default: files only)")
+    parser.add_argument(
+        "--credentials", metavar="PATH", default=None,
+        help="OAuth client file (default: GDRIVE_CREDENTIALS, then the project folder)",
+    )
+    parser.add_argument(
+        "--token", metavar="PATH", default=None,
+        help="Saved sign-in token file (default: GDRIVE_TOKEN, then the project folder)",
+    )
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help=f"Report folder (default: {DEFAULT_OUTPUT_DIR})")
     _add_logging_args(parser, strict=True)
     return parser
@@ -107,11 +126,41 @@ def search_terms(args: argparse.Namespace, info: LoggingInfo) -> list[tuple[str,
         ("Created after", _fmt(args.created_after)),
         ("Created before", _fmt(args.created_before)),
         ("Include shared drives", _fmt(args.include_shared_drives)),
+        ("Include trashed files", _fmt(args.include_trashed)),
+        ("Include folders", _fmt(args.include_folders)),
         ("Output folder", str(Path(args.output_dir).expanduser().resolve())),
         ("Log level", args.log_level),
         ("Log folder", str(info.log_dir) if info.log_dir else "(console only)"),
         ("Verbose", _fmt(args.verbose)),
     ]
+
+
+def prompt_for_terms(ask: Callable[[str], str], tell: Callable[[str], None]) -> list[str]:
+    """Interactive mode: ask for the search terms and return them as arguments.
+
+    Blank dates are skipped. A blank name or an invalid date is asked again.
+    Raises EOFError or KeyboardInterrupt if the user cancels.
+    """
+    name = ""
+    while not name.strip():
+        name = ask("File name contains: ")
+    argv = ["--name", name.strip()]
+    for flag, label in (
+        ("--created-after", "Created on or after (YYYY-MM-DD, blank to skip): "),
+        ("--created-before", "Created on or before (YYYY-MM-DD, blank to skip): "),
+    ):
+        while True:
+            value = ask(label).strip()
+            if not value:
+                break
+            try:
+                parse_date(value)
+            except argparse.ArgumentTypeError as exc:
+                tell(str(exc))
+                continue
+            argv += [flag, value]
+            break
+    return argv
 
 
 def _fail(info: LoggingInfo, message: str, exc: BaseException, code: int) -> int:
@@ -120,7 +169,16 @@ def _fail(info: LoggingInfo, message: str, exc: BaseException, code: int) -> int
     return code
 
 
-def _run(argv: Sequence[str], info: LoggingInfo) -> int:
+def _run(argv: Sequence[str], info: LoggingInfo, console: Console | None = None) -> int:
+    console = console or Console()
+    if not argv:
+        logger.info("No arguments given; asking for search terms interactively.")
+        console.print(Text("Google Drive search. Leave a date blank to skip it.", style="bold"))
+        try:
+            argv = prompt_for_terms(console.input, lambda message: console.print(Text(message, style="red")))
+        except EOFError:
+            logger.warning("Cancelled by user.")
+            return EXIT_INTERRUPTED
     run_at = datetime.now().astimezone()
     parser = build_parser()
     try:
@@ -141,11 +199,12 @@ def _run(argv: Sequence[str], info: LoggingInfo) -> int:
         created_after=args.created_after,
         created_before=args.created_before,
         include_shared_drives=args.include_shared_drives,
+        include_trashed=args.include_trashed,
+        include_folders=args.include_folders,
     )
-    console = Console()
 
     try:
-        credentials = auth.get_credentials()
+        credentials = auth.get_credentials(args.credentials, args.token)
         service = auth.build_drive_service(credentials)
         files = search_files(service, criteria)
         resolver = PathResolver(service)
@@ -176,7 +235,7 @@ def _run(argv: Sequence[str], info: LoggingInfo) -> int:
     return EXIT_OK
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -> int:
     """Run the utility. Returns the process exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
 
@@ -188,10 +247,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     info = setup_logging(level=level, log_dir=log_opts.log_dir, verbose=log_opts.verbose)
 
     started = time.monotonic()
-    logger.info("Drive Search %s starting (Python %s)", __version__, platform.python_version())
+    logger.info(
+        "Drive Search %s starting (Python %s, %s)", __version__, platform.python_version(), platform.platform()
+    )
     code = EXIT_UNEXPECTED
     try:
-        code = _run(argv, info)
+        code = _run(argv, info, console)
     except KeyboardInterrupt:
         logger.warning("Cancelled by user.")
         code = EXIT_INTERRUPTED

@@ -1,3 +1,11 @@
+"""
+Module:        tests/test_logging_setup.py
+Description:   Tests for logging_setup.py: folders, fallback, format, console.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 import logging
 import re
 
@@ -5,6 +13,8 @@ import pytest
 
 from drive_search import logging_setup
 from drive_search.logging_setup import LOG_FILE_NAME, setup_logging, shutdown_logging
+
+__version__ = "1.0.0"
 
 LINE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2} \| INFO \| run=[0-9a-f]{8} \| \S+ \| .+$"

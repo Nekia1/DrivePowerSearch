@@ -1,3 +1,11 @@
+"""
+Module:        tests/test_search.py
+Description:   Tests for query building, pagination and retries.
+Version:       1.0.0
+Created:       2026-11-10
+Last updated:  2026-11-11T15:20:00-05:00
+"""
+
 from datetime import date, datetime, timezone
 
 import pytest
@@ -12,6 +20,8 @@ from drive_search.search import (
 )
 from fakes import FakeService, drive_file, make_http_error
 
+__version__ = "1.0.0"
+
 
 def local_midnight_utc(y, m, d):
     return datetime(y, m, d).astimezone().astimezone(timezone.utc)
@@ -19,7 +29,13 @@ def local_midnight_utc(y, m, d):
 
 class TestBuildQuery:
     def test_contains_by_default(self):
-        assert build_query(SearchCriteria(name="budget")) == "name contains 'budget' and trashed = false"
+        assert build_query(SearchCriteria(name="budget")) == (
+            "name contains 'budget' and trashed = false and mimeType != 'application/vnd.google-apps.folder'"
+        )
+
+    def test_include_trashed_and_folders(self):
+        query = build_query(SearchCriteria(name="budget", include_trashed=True, include_folders=True))
+        assert query == "name contains 'budget'"
 
     def test_exact(self):
         assert build_query(SearchCriteria(name="Budget.xlsx", exact=True)).startswith("name = 'Budget.xlsx'")
