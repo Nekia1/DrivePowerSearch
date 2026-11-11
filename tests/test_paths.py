@@ -60,3 +60,8 @@ def test_shared_drive_root():
 def test_parent_cycle_terminates():
     r, _ = resolver()
     assert r.resolve(drive_file("x", "a.txt", parents=["loop1"])).startswith("(shared with me)/")
+
+
+def test_multiple_parents_uses_the_first():
+    r, _ = resolver()
+    assert r.resolve(drive_file("x", "a.txt", parents=["f2", "f5"])) == "My Drive/Projects/2026/a.txt"

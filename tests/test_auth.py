@@ -149,3 +149,30 @@ def test_secrets_never_reach_the_log(monkeypatch, tmp_path, paths):
     assert "Browser sign-in completed" in log  # proves logging happened
     assert TOKEN_SECRET not in log
     assert REFRESH_SECRET not in log
+
+
+def test_unreadable_token_triggers_sign_in(monkeypatch, paths):
+    secrets, token = paths
+    secrets.write_text("{}")
+    token.write_text("not json")
+    flow = install(monkeypatch)
+
+    def corrupt(path):
+        raise ValueError("bad token file")
+
+    monkeypatch.setattr(auth, "Credentials", SimpleNamespace(from_authorized_user_file=corrupt))
+    auth.get_credentials(secrets, token)
+    assert flow.ran
+
+
+def test_invalid_client_file_has_its_own_message(monkeypatch, paths):
+    secrets, token = paths
+    secrets.write_text('{"service_account": true}')
+    install(monkeypatch)
+
+    def wrong_type(path, scopes):
+        raise ValueError("Client secrets must be for a web or installed app.")
+
+    monkeypatch.setattr(auth, "InstalledAppFlow", SimpleNamespace(from_client_secrets_file=wrong_type))
+    with pytest.raises(auth.AuthenticationError, match="not a valid OAuth 'Desktop app' client file"):
+        auth.get_credentials(secrets, token)

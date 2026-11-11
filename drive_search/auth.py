@@ -124,9 +124,16 @@ def get_credentials(
             "credentials.json, and put it there (see README, 'Google Cloud setup')."
         )
 
-    logger.info("Starting browser sign-in")
     try:
         flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), scopes)
+    except (ValueError, KeyError) as exc:  # bad JSON, or not a Desktop/installed client
+        raise AuthenticationError(
+            f"{secrets_file} is not a valid OAuth 'Desktop app' client file ({exc.__class__.__name__}). "
+            "Download it again from Google Cloud Console (see docs/google_cloud_setup.md, Step 7)."
+        ) from exc
+
+    logger.info("Starting browser sign-in")
+    try:
         creds = flow.run_local_server(port=0)
     except Exception as exc:  # oauthlib raises many types; all mean "sign-in failed"
         raise AuthenticationError(f"Google sign-in failed or was cancelled ({exc.__class__.__name__}).") from exc

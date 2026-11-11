@@ -6,6 +6,7 @@ so tests can pass in a fake.
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import time
@@ -19,10 +20,11 @@ from googleapiclient.errors import HttpError
 logger = logging.getLogger(__name__)
 
 FILE_FIELDS = "id, name, mimeType, createdTime, modifiedTime, parents, driveId, webViewLink"
-PAGE_SIZE = 100
+PAGE_SIZE = 1000  # the API maximum: fewest calls for large result sets
 MAX_RETRIES = 5
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-RATE_LIMIT_REASONS = {"rateLimitExceeded", "userRateLimitExceeded"}
+# "errors[].reason" values (legacy format) and the "details[].reason" value (google.rpc.ErrorInfo).
+RATE_LIMIT_REASONS = {"rateLimitExceeded", "userRateLimitExceeded", "RATE_LIMIT_EXCEEDED"}
 
 
 class DriveSearchError(Exception):
@@ -86,10 +88,22 @@ def build_query(criteria: SearchCriteria) -> str:
 
 
 def _error_reasons(exc: HttpError) -> set[str]:
-    details = getattr(exc, "error_details", None)
-    if isinstance(details, list):
-        return {d.get("reason", "") for d in details if isinstance(d, dict)}
-    return set()
+    """Collect every ``reason`` in the error body.
+
+    Drive puts reasons in ``error.errors[]``, ``error.details[]``, or both.
+    ``HttpError.error_details`` exposes only one of those lists (it prefers
+    ``details``), so read the raw body instead.
+    """
+    reasons: set[str] = set()
+    try:
+        error = json.loads(exc.content.decode("utf-8", "replace")).get("error", {})
+    except (AttributeError, ValueError):
+        error = {}
+    lists = [error.get("errors"), error.get("details"), getattr(exc, "error_details", None)] if isinstance(error, dict) else []
+    for items in lists:
+        if isinstance(items, list):
+            reasons.update(d.get("reason", "") for d in items if isinstance(d, dict))
+    return reasons
 
 
 def http_status(exc: HttpError) -> int:

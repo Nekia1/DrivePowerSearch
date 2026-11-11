@@ -117,3 +117,52 @@ class TestSearchFiles:
         service = FakeService(pages=[[ConnectionResetError("reset"), {"files": []}]])
         search_files(service, SearchCriteria(name="a"), sleep=sleeps.append)
         assert len(sleeps) == 1
+
+
+class TestRateLimitFormats:
+    """Drive reports 403 rate limits in two body formats; both must be retried."""
+
+    @staticmethod
+    def _error_403(body):
+        import json
+
+        import httplib2
+        from googleapiclient.errors import HttpError
+
+        return HttpError(httplib2.Response({"status": "403"}), json.dumps({"error": body}).encode("utf-8"))
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            # Legacy format: reason only in "errors".
+            {"code": 403, "message": "Rate", "errors": [{"domain": "usageLimits", "reason": "userRateLimitExceeded"}]},
+            # Newer format: "details" (google.rpc.ErrorInfo) present. HttpError.error_details then
+            # exposes only "details", so the old "errors"-only check missed this case.
+            {
+                "code": 403,
+                "message": "Rate",
+                "errors": [{"domain": "usageLimits", "reason": "rateLimitExceeded"}],
+                "details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "RATE_LIMIT_EXCEEDED"}],
+            },
+            # "details" only.
+            {"code": 403, "message": "Rate", "details": [{"reason": "RATE_LIMIT_EXCEEDED"}]},
+        ],
+        ids=["errors", "errors+details", "details-only"],
+    )
+    def test_403_rate_limit_is_retried(self, body):
+        sleeps = []
+        service = FakeService(pages=[[self._error_403(body), {"files": []}]])
+        search_files(service, SearchCriteria(name="a"), sleep=sleeps.append)
+        assert len(sleeps) == 1
+
+    def test_403_permission_with_details_is_not_retried(self):
+        body = {"code": 403, "message": "No", "details": [{"reason": "ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}
+        service = FakeService(pages=[[self._error_403(body)]])
+        with pytest.raises(DriveSearchError, match="HTTP 403"):
+            search_files(service, SearchCriteria(name="a"), sleep=lambda s: None)
+
+
+def test_requests_the_maximum_page_size():
+    service = FakeService(pages=[{"files": []}])
+    search_files(service, SearchCriteria(name="a"))
+    assert service.files_api.list_calls[0]["pageSize"] == 1000

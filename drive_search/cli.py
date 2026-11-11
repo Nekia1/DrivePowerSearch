@@ -159,7 +159,7 @@ def _run(argv: Sequence[str], info: LoggingInfo) -> int:
             )
             for f in files
         ]
-        report = Report(search_terms=terms, run_at=run_at, rows=rows)
+        report = Report(search_terms=terms, run_at=run_at, rows=rows, version=__version__, run_id=info.run_id)
         render_terminal(report, console)
         md_path, html_path = save_reports(report, args.output_dir)
     except AuthError as exc:

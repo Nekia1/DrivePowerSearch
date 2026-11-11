@@ -121,3 +121,18 @@ def test_unwritable_output_exit_5(tmp_path, monkeypatch, capsys):
     blocker.write_text("x")
     assert run((blocker, tmp_path / "logs")) == cli.EXIT_OUTPUT
     assert "Could not write reports" in capsys.readouterr().err
+
+
+def test_version_flag(tmp_path, capsys):
+    from drive_search import __version__
+
+    assert cli.main(["--version", "--log-dir", str(tmp_path)]) == 0
+    assert __version__ in capsys.readouterr().out
+
+
+def test_report_run_id_matches_the_log(dirs, monkeypatch):
+    fake_drive(monkeypatch)
+    assert run(dirs) == cli.EXIT_OK
+    (log_run_id,) = set(re.findall(r"run=([0-9a-f]{8})", log_text(dirs)))
+    md = next(dirs[0].glob("*.md")).read_text(encoding="utf-8")
+    assert f"run {log_run_id}" in md

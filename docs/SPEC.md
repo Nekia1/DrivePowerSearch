@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Version** | 1.3.1 |
+| **Version** | 1.4.0 |
 | **Created** | 2026-11-10 |
-| **Last updated** | 2026-11-10 |
+| **Last updated** | 2026-11-11 |
 
 **Changelog**
+- **1.4.0** (2026-11-11): Merged lessons from the earlier standalone `VS_Code_Lessons/drive_search` 1.0.0 build. Reports show the tool version and run ID. Rate limits are recognized in both Drive error formats. Searches request the largest page size. Report files are created exclusively. An invalid `credentials.json` gets its own message. A test enforces the module-boundary rules.
 - **1.3.1** (2026-11-10): Moved from the Prompt_Engineering repo into `drive_search/docs/SPEC.md` (from Prompt_Engineering commit 27c4c13). No requirement changes.
 - **1.3.0** (2026-11-10): The log folder is created on first run, its write access is checked on every run, and there is a fallback location. The default log folder is now next to the utility instead of in the current working directory.
 - **1.2.0** (2026-11-10): Added a separate `logging_setup` module that records every operation, plus `--log-level` and `--log-dir` options.
@@ -33,7 +34,7 @@ Put all sign-in and permission logic in a separate module that the rest of the t
   3. Otherwise, run the OAuth 2.0 "Desktop app" flow (`InstalledAppFlow.run_local_server`) with the client secrets in `credentials.json`, then save the resulting token.
 - **Scopes:** define `DEFAULT_SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]` as a constant in this module. This is the narrowest scope that works. If the saved token was granted different scopes, ask me to sign in again instead of failing with an unclear error.
 - **Configurable paths:** let the credential and token paths be overridden by the function arguments or by environment variables (`GDRIVE_CREDENTIALS`, `GDRIVE_TOKEN`), so the files can live outside the project folder.
-- **Errors:** raise custom exceptions (`CredentialsNotFoundError`, `AuthenticationError`) with clear messages. Let the CLI decide how to show them, and don't call `sys.exit` inside this module.
+- **Errors:** raise custom exceptions (`CredentialsNotFoundError`, `AuthenticationError`) with clear messages. A `credentials.json` that exists but isn't a valid "Desktop app" OAuth client file gets its own message telling me to download it again. Let the CLI decide how to show them, and don't call `sys.exit` inside this module.
 - **Security:** never print or log token contents. Write `token.json` only to the configured path. Add `credentials.json` and `token.json` to `.gitignore`.
 - **Reuse:** the module must not depend on the search or report code, so it can be reused in other Google Drive tools.
 
@@ -86,7 +87,8 @@ Validate the inputs. Reject bad dates, `--created-on` combined with a range, and
 - Build the query with the Drive API `q` parameter (`name contains '...'`, `createdTime >= '...'`). Escape quotes in user input.
 - Treat dates in my **local time zone** and convert them to UTC (RFC 3339) for the API.
 - Exclude trashed files (`trashed = false`). Include folders and Google Docs/Sheets/Slides as well as uploaded files.
-- Handle pagination (`nextPageToken`) so every match is returned, not just the first page.
+- Handle pagination (`nextPageToken`) so every match is returned, not just the first page. Request the largest page size the API allows (`pageSize=1000`) to keep the number of calls down.
+- Rate limits: Drive reports them as HTTP 429, or as HTTP 403 with a reason (`rateLimitExceeded`, `userRateLimitExceeded`) in `error.errors[]`, or `RATE_LIMIT_EXCEEDED` in `error.details[]`. Recognize all of these and retry with backoff.
 - **Full path:** Drive has no real paths. Rebuild one by walking each file's `parents` up to the root, for example `My Drive/Projects/2026/report.pdf`. Cache folder lookups to avoid repeated API calls. If a file has several parents, show the first one. If the path can't be resolved (for example, a file shared with me whose parent I can't see), show `(shared with me)/<name>`.
 - Sort results by creation date, newest first.
 
@@ -94,19 +96,20 @@ Validate the inputs. Reject bad dates, `--created-on` combined with a range, and
 1. Title: "Google Drive Search Report"
 2. Search terms used: every argument and its value, including defaults
 3. Report run date and time: local time, ISO 8601 format, with the time zone offset
-4. Total number of files found
-5. Results table with these columns, in this order:
+4. Tool version and run ID, so a report can be matched to its lines in the log (`run=<id>`)
+5. Total number of files found
+6. Results table with these columns, in this order:
    - File name
    - Created (local time, `YYYY-MM-DD HH:MM`)
    - Modified (local time, `YYYY-MM-DD HH:MM`)
    - Full path
-6. If nothing matches, show "No files found" instead of an empty table.
+7. If nothing matches, show "No files found" instead of an empty table.
 
 ## Outputs
 - **Terminal:** a readable aligned table (use `tabulate` or `rich`). Shorten long paths if needed so the table fits.
 - **Markdown:** a valid GitHub-flavored Markdown table. Escape `|` characters in file names.
 - **HTML:** a single self-contained page (inline CSS, no external dependencies) with a styled, readable table. The **full path is a hyperlink** to the file's Drive `webViewLink` and opens in a new tab. HTML-escape every value taken from Drive.
-- File names: `drive_search_<YYYYMMDD_HHMMSS>.md` and `.html`, so earlier reports are never overwritten. Create the output folder if it doesn't exist.
+- File names: `drive_search_<YYYYMMDD_HHMMSS>.md` and `.html`, so earlier reports are never overwritten. Create each file exclusively (open mode `"x"`), adding `_2`, `_3`... on a clash, so two runs in the same second can't overwrite each other. Create the output folder if it doesn't exist.
 - After saving, print the absolute paths of both report files.
 
 ## Error handling
@@ -152,6 +155,7 @@ The search module receives the Drive service as an argument (dependency injectio
 - Each run adds one start line and one end line to `drive_search.log`, sharing the same run ID. Every API page, auth step, and report write in between is logged at `INFO`.
 - At the default `INFO` level, the log contains no file names. At `DEBUG`, it does.
 - Only `logging_setup.py` configures logging handlers. A search for `basicConfig`, `addHandler`, and `print(` finds none elsewhere, except `print` calls that output the report.
+- The two rules above are enforced by a pytest test (`tests/test_project_rules.py`), not only by manual search.
 - `pytest` passes.
 
 ## Out of scope

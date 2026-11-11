@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 TITLE = "Google Drive Search Report"
 NO_RESULTS = "No files found"
 COLUMNS = ("File name", "Created", "Modified", "Full path")
+MAX_NAME_ATTEMPTS = 1000
 
 
 class ReportWriteError(Exception):
@@ -42,10 +43,19 @@ class Report:
     search_terms: list[tuple[str, str]]
     run_at: datetime  # timezone-aware, local
     rows: list[ResultRow] = field(default_factory=list)
+    version: str = ""
+    run_id: str = ""  # same ID as the log's "run=..." field
 
     @property
     def count(self) -> int:
         return len(self.rows)
+
+    @property
+    def tool_text(self) -> str:
+        """``drive_search 0.2.0, run 3f9a1c2e`` (empty if no version was given)."""
+        if not self.version:
+            return ""
+        return f"drive_search {self.version}" + (f", run {self.run_id}" if self.run_id else "")
 
 
 def parse_drive_time(value: str | None) -> datetime | None:
@@ -75,6 +85,8 @@ def render_terminal(report: Report, console: Console | None = None) -> None:
     console = console or Console()
     console.print(Text(TITLE, style="bold"))
     console.print(Text(f"Report run:  {format_run_time(report.run_at)}"))
+    if report.tool_text:
+        console.print(Text(f"Tool:        {report.tool_text}"))
     console.print(Text(f"Files found: {report.count}"))
 
     terms = Table(title="Search terms", title_justify="left", show_header=True)
@@ -116,6 +128,7 @@ def render_markdown(report: Report) -> str:
         "",
         f"**Report run:** {format_run_time(report.run_at)}",
         "",
+        *([f"**Tool:** {_md(report.tool_text)}", ""] if report.tool_text else []),
         f"**Files found:** {report.count}",
         "",
         "## Search terms",
@@ -185,6 +198,7 @@ def render_html(report: Report) -> str:
     else:
         results = f'<p class="empty">{_h(NO_RESULTS)}</p>'
 
+    tool_line = f'<p class="meta"><strong>Tool:</strong> {_h(report.tool_text)}</p>\n' if report.tool_text else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -199,7 +213,7 @@ def render_html(report: Report) -> str:
 <main>
 <h1>{_h(TITLE)}</h1>
 <p class="meta"><strong>Report run:</strong> {_h(format_run_time(report.run_at))}</p>
-<p class="meta"><strong>Files found:</strong> {report.count}</p>
+{tool_line}<p class="meta"><strong>Files found:</strong> {report.count}</p>
 <h2>Search terms</h2>
 <div class="table-wrap"><table>
 <thead><tr><th>Term</th><th>Value</th></tr></thead>
@@ -220,22 +234,31 @@ def render_html(report: Report) -> str:
 def save_reports(report: Report, output_dir: str | os.PathLike[str]) -> tuple[Path, Path]:
     """Write ``drive_search_<YYYYMMDD_HHMMSS>.md`` and ``.html``.
 
-    Never overwrites an earlier report: adds ``_2``, ``_3``... if needed.
+    Never overwrites an earlier report: adds ``_2``, ``_3``... if needed. Files
+    are opened in exclusive-create mode, so even two runs in the same second
+    can't overwrite each other.
     Returns the absolute paths of the Markdown and HTML files.
     """
     folder = Path(output_dir).expanduser().resolve()
     stamp = report.run_at.strftime("%Y%m%d_%H%M%S")
     try:
         folder.mkdir(parents=True, exist_ok=True)
-        base = f"drive_search_{stamp}"
-        suffix = 1
-        while (folder / f"{base}.md").exists() or (folder / f"{base}.html").exists():
-            suffix += 1
-            base = f"drive_search_{stamp}_{suffix}"
-        md_path = folder / f"{base}.md"
-        html_path = folder / f"{base}.html"
-        md_path.write_text(render_markdown(report), encoding="utf-8")
-        html_path.write_text(render_html(report), encoding="utf-8")
+        for suffix in range(1, MAX_NAME_ATTEMPTS + 1):
+            base = f"drive_search_{stamp}" if suffix == 1 else f"drive_search_{stamp}_{suffix}"
+            md_path = folder / f"{base}.md"
+            html_path = folder / f"{base}.html"
+            if html_path.exists():
+                continue
+            try:
+                with open(md_path, "x", encoding="utf-8") as fh:  # "x": fail if it exists
+                    fh.write(render_markdown(report))
+            except FileExistsError:
+                continue
+            with open(html_path, "x", encoding="utf-8") as fh:
+                fh.write(render_html(report))
+            break
+        else:
+            raise FileExistsError(f"no unused report name after {MAX_NAME_ATTEMPTS} tries")
     except OSError as exc:
         raise ReportWriteError(f"Could not write reports to {folder} ({exc.__class__.__name__}: {exc}).") from exc
     logger.info("Wrote Markdown report: %s", md_path)

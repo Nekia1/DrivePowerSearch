@@ -15,7 +15,9 @@
 
 # --- Private material: never commit ----------------------------------------
 *_private*/
-*transcript*
+# "transcript" in any letter case. A plain *transcript* only does that on
+# Windows (core.ignorecase); macOS, Linux and GitHub match case-sensitively.
+*[Tt][Rr][Aa][Nn][Ss][Cc][Rr][Ii][Pp][Tt]*
 
 # --- Secrets ---------------------------------------------------------------
 .env

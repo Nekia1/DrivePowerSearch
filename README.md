@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Created** | 2026-11-10 |
-| **Spec** | [`docs/SPEC.md`](docs/SPEC.md) v1.3.1 (original idea: [`docs/rough_prompt.md`](docs/rough_prompt.md)) |
+| **Spec** | [`docs/SPEC.md`](docs/SPEC.md) v1.4.0 (original idea: [`docs/rough_prompt.md`](docs/rough_prompt.md)) |
 
 A command-line tool that searches your Google Drive by file name and creation date. It prints a report in the terminal and saves the same report as Markdown and HTML in `search_results/`. In the HTML report, each file path is a link that opens the file in Drive.
 
@@ -86,12 +86,12 @@ python -m drive_search --name invoice --include-shared-drives --verbose
 ## 3. Output
 - **Terminal:** the report tables.
 - **`search_results/drive_search_<YYYYMMDD_HHMMSS>.md` and `.html`:** a new pair on every run, so earlier reports are never overwritten.
-- Each report contains the search terms (including defaults), the run date and time with your UTC offset, the number of files found, and a table with file name, created, modified and full path.
+- Each report contains the search terms (including defaults), the run date and time with your UTC offset, the tool version and run ID, the number of files found, and a table with file name, created, modified and full path.
 
 **About "full path":** Google Drive has no real paths, so the tool rebuilds one from each file's folders, for example `My Drive/Projects/2026/report.pdf`. Files shared with you, whose folders you can't see, show as `(shared with me)/...`. A file with several parent folders shows the first one.
 
 ## 4. Logs
-`logs/drive_search.log` (created automatically on first run). It records each run's start and end, sign-in steps, each page of results, and the reports written. Every line in a run shares the same `run=xxxxxxxx` ID.
+`logs/drive_search.log` (created automatically on first run). It records each run's start and end, sign-in steps, each page of results, and the reports written. Every line in a run shares the same `run=xxxxxxxx` ID, and each report shows that ID, so you can find a report's log lines.
 - At the default `INFO` level, the log records **counts, not file names**. Use `--log-level DEBUG` to include names.
 - Tokens and secrets are never logged.
 - If `logs/` can't be written to, logs go to `%LOCALAPPDATA%\DriveSearch\logs`. If that fails too, they go to the terminal only.
@@ -116,6 +116,6 @@ The tests use a fake Drive and make no network calls.
 | `drive_search/search.py` | Drive query, paging, retries |
 | `drive_search/paths.py` | Rebuilding full paths (cached) |
 | `drive_search/reports.py` | Terminal, Markdown and HTML reports |
-| `tests/` | pytest suite with a fake Drive (`tests/fakes.py`) |
+| `tests/` | pytest suite with a fake Drive (`tests/fakes.py`). `test_project_rules.py` enforces the module-boundary rules |
 | `docs/SPEC.md` | The spec this code implements, and `docs/rough_prompt.md`, the original idea |
 | `setup/environment.yml` | Conda environment `powertools`, plus `requirements.txt` for pip users |

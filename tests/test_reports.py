@@ -118,3 +118,29 @@ class TestSave:
         blocker.write_text("x")
         with pytest.raises(ReportWriteError, match="Could not write reports"):
             save_reports(report(), blocker)
+
+
+def test_tool_version_and_run_id_in_every_output():
+    rep = Report(search_terms=TERMS, run_at=RUN_AT, rows=[row()], version="9.9.9", run_id="3f9a1c2e")
+    for text in (render_markdown(rep), render_html(rep), terminal_text(rep)):
+        assert "drive_search 9.9.9, run 3f9a1c2e" in text
+
+
+def test_save_skips_a_name_taken_after_the_check(tmp_path, monkeypatch):
+    """Exclusive create: a file that appears between the check and the write is never overwritten."""
+    import builtins
+
+    out = tmp_path / "out"
+    out.mkdir()
+    taken = out / "drive_search_20261110_143205.md"
+    real_open = builtins.open
+
+    def racing_open(file, mode="r", *args, **kwargs):
+        if mode == "x" and file == taken and not taken.exists():
+            taken.write_text("another run", encoding="utf-8")  # another run wins the race
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", racing_open)
+    md_path, _ = save_reports(report(), out)
+    assert md_path.name == "drive_search_20261110_143205_2.md"
+    assert taken.read_text(encoding="utf-8") == "another run"

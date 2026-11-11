@@ -96,3 +96,12 @@ def test_traceback_goes_to_file_not_console(tmp_path, capsys):
 def test_invalid_level_rejected():
     with pytest.raises(ValueError):
         setup_logging(level="CHATTY")
+
+
+def test_setup_twice_does_not_duplicate_handlers(tmp_path):
+    setup_logging(log_dir=tmp_path)
+    count = len(logging.getLogger().handlers)
+    setup_logging(log_dir=tmp_path)
+    assert len(logging.getLogger().handlers) == count
+    logging.getLogger("drive_search.test").warning("once")
+    assert read_log(tmp_path).count("once") == 1

@@ -3,7 +3,7 @@
 Searches Google Drive by file name and creation date, prints a report to the
 terminal, and saves Markdown and HTML copies.
 
-Spec: docs/SPEC.md (v1.3.x)
+Spec: docs/SPEC.md (v1.4.x)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

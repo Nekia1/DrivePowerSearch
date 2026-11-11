@@ -175,6 +175,7 @@ To make the setting permanent, open the Start menu, search for **"Edit environme
 | What you see | Cause | Fix |
 |---|---|---|
 | `ERROR: OAuth client file not found: ...credentials.json` (exit code 3) | The file is missing, misnamed, or in the wrong folder | Repeat Step 8. Check for `credentials.json.json`. If you set `GDRIVE_CREDENTIALS`, check that path |
+| `ERROR: ...credentials.json is not a valid OAuth 'Desktop app' client file` (exit code 3) | The file is damaged or edited, or isn't an OAuth client file (for example, a service-account key) | Step 7 again, choosing **Desktop app**, and download a fresh JSON |
 | Browser: **"Error 403: access_denied"** or **"…has not completed the Google verification process"** | Your account isn't a test user | Step 5: add the exact email you're signing in with |
 | `Google Drive rejected the search request (HTTP 403)`, and the log mentions `accessNotConfigured` or "API has not been used in project" | The Drive API is off, or is on in a different project | Step 3, making sure the right project is selected at the top. Allow a few minutes after enabling it |
 | Browser: **"Error 400: redirect_uri_mismatch"** | The client was created as **Web application** | Step 7 again, choosing **Desktop app** |
