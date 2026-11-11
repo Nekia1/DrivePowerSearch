@@ -14,6 +14,8 @@ It asks only for **read-only access to file details** (names, dates, folders). I
 
 ## 1. One-time setup
 
+***You MUST to replace {user_account} with your own Windows local user account folder name for these commands below to work correctly.***
+
 ### 1.1 Conda environment
 In **Anaconda Prompt**:
 ```
@@ -23,19 +25,12 @@ conda activate powertools
 ```
 
 ### 1.2 Google Cloud setup (creates `credentials.json`)
-You only do this once. It takes about 10 minutes in a browser.
+You only do this once. It takes about 15 minutes in a browser, and it's free.
 
-1. Go to <https://console.cloud.google.com/> and sign in with the Google account whose Drive you want to search.
-2. **Create a project:** click the project picker at the top, choose **New project**, name it something like `Drive Search`, and click **Create**. Make sure it's selected.
-3. **Turn on the Drive API:** go to **APIs & Services → Library**, search for **Google Drive API**, and click **Enable**.
-4. **Set up the consent screen:** go to **Google Auth Platform** (or **APIs & Services → OAuth consent screen**) and click **Get started**.
-   - App name: `Drive Search`. Support email: your email.
-   - Audience: **External** (choose **Internal** if you're on a Google Workspace account and only you will use it).
-   - Contact email: your email. Agree to the policy, then click **Create**.
-   - Under **Audience → Test users**, click **Add users** and add **your own email**.
-5. **Create the OAuth client:** go to **Clients → Create client**, choose application type **Desktop app**, name it `Drive Search CLI`, and click **Create**.
-6. Click **Download JSON**, rename the file to **`credentials.json`**, and put it in this folder:
-   `C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch\credentials.json`
+**Follow the step-by-step guide: [docs/google_cloud_setup.md](docs/google_cloud_setup.md).** It covers every screen, a checklist to confirm it worked, troubleshooting for common errors, and security tips.
+
+In short: create a Google Cloud project, turn on the Google Drive API, set up the OAuth consent screen (External, Testing) and add yourself as a test user, then create a **Desktop app** OAuth client. Download its JSON as **`credentials.json`** into this folder:
+`C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch\credentials.json`
 
 `credentials.json` and `token.json` are listed in `.gitignore`. **Never commit or share them.**
 
@@ -47,7 +42,7 @@ The first search opens your browser:
 
 The tool saves the sign-in as `token.json`, so later runs don't open the browser.
 
-> **Testing-mode note:** while the app's publishing status is "Testing", Google expires the saved sign-in after **7 days**. When that happens, the tool simply opens the browser again. To avoid this, you can publish the app ("In production"). For a personal app with only the read-only metadata permission, that doesn't need Google's review, though you'll still see the "unverified app" screen.
+> **Testing-mode note:** while the app's publishing status is "Testing", Google expires the saved sign-in after **7 days**. When that happens, the tool simply opens the browser again. You can avoid this by publishing the app, but the permission the tool uses is one Google classes as "restricted", so read the guide's "Testing vs In production" section first.
 
 ---
 

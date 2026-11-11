@@ -8,7 +8,7 @@ Google Drive search CLI. The spec is `docs/SPEC.md` (v1.3.x); the original idea 
 |---|---|
 | `drive_search/` | The package (6 modules, see below) |
 | `tests/` | pytest suite; `tests/fakes.py` is the fake Drive service |
-| `docs/` | `SPEC.md`, `rough_prompt.md` |
+| `docs/` | `SPEC.md`, `rough_prompt.md`, `google_cloud_setup.md` (Drive API credentials guide; keep its error messages in sync with `auth.py`/`cli.py`) |
 | `setup/` | `environment.yml` (conda env `powertools`), `requirements.txt` (pip fallback) |
 | `pyproject.toml` | pytest settings (stays at the top level) |
 
