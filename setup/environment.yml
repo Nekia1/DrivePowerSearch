@@ -15,7 +15,7 @@
 #   and then restart PowerShell.)
 #
 #   1. Go to the repository folder:
-#        cd "C:\Users\{user_account}\Documents\00_PythonWIP\drive_search"
+#        cd "C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch"
 #
 #   2. Create the environment (first time only):
 #        conda env create -f setup\environment.yml

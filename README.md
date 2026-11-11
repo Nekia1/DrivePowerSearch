@@ -17,7 +17,7 @@ It asks only for **read-only access to file details** (names, dates, folders). I
 ### 1.1 Conda environment
 In **Anaconda Prompt**:
 ```
-cd "C:\Users\{user_account}\Documents\00_PythonWIP\drive_search"
+cd "C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch"
 conda env create -f setup\environment.yml      # skip if "powertools" already exists
 conda activate powertools
 ```
@@ -35,7 +35,7 @@ You only do this once. It takes about 10 minutes in a browser.
    - Under **Audience → Test users**, click **Add users** and add **your own email**.
 5. **Create the OAuth client:** go to **Clients → Create client**, choose application type **Desktop app**, name it `Drive Search CLI`, and click **Create**.
 6. Click **Download JSON**, rename the file to **`credentials.json`**, and put it in this folder:
-   `C:\Users\{user_account}\Documents\00_PythonWIP\drive_search\credentials.json`
+   `C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch\credentials.json`
 
 `credentials.json` and `token.json` are listed in `.gitignore`. **Never commit or share them.**
 
@@ -54,7 +54,7 @@ The tool saves the sign-in as `token.json`, so later runs don't open the browser
 ## 2. Usage
 ```
 conda activate powertools
-cd "C:\Users\{user_account}\Documents\00_PythonWIP\drive_search"
+cd "C:\Users\{user_account}\Documents\00_PythonWIP\DrivePowerSearch"
 python -m drive_search --name budget
 ```
 
